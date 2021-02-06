@@ -29,12 +29,12 @@ print("Metadata loaded")
 if not os.path.isfile(args.semantic_map_file_path):
     raise ValueError("Semantic map file path is not a valid file")
 
-loaded_semantic_map = semantic_map.SemanticMap(args.semantic_map_file_path, ecef_to_world)
-
-print("Semantic map loaded")
-
 if not os.path.isdir(args.scene_dataset_dir_path):
     raise ValueError("Scene dataset directory path is not a valid directory")
+
+loaded_semantic_map = semantic_map.SemanticMap(args.semantic_map_file_path, args.scene_dataset_dir_path, ecef_to_world)
+
+print("Semantic map loaded")
 
 scene_dataset = zarr.open(args.scene_dataset_dir_path)
 

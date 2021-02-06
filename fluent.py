@@ -4,7 +4,7 @@ import enum
 import copy
 import numpy as np
 
-class Fluent(enum.Enum):
+class Fluent(enum.IntEnum):
 
     @staticmethod
     def get_affinity_matrix():
@@ -20,6 +20,29 @@ class Fluent(enum.Enum):
             raise Exception("Index pair outside of affinity matrix bounds")
 
         return affinity_matrix[self, fluent]
+
+
+class TrafficLightFluent(Fluent):
+
+    @staticmethod
+    def get_affinity_matrix():
+        return np.array([[0, 1, 2, 3], [1, 0, 2, 3], [1, 2, 0, 3], [1, 3, 2, 0]])
+
+    UNKNOWN = 0
+    RED = 1
+    YELLOW = 2
+    GREEN = 3
+
+
+class TrafficLightFaceFluent(Fluent):
+
+    @staticmethod
+    def get_affinity_matrix():
+        return np.array([[0, 1, 2], [1, 0, 2], [1, 2, 0]])
+
+    UNKNOWN = 0
+    INACTIVE = 1
+    ACTIVE = 2
 
 
 class MovementFluent(Fluent):

@@ -134,32 +134,32 @@ class Agent:
         for i in range(len(self.states) - 1):
             if np.linalg.norm(self.states[i]["linear_acceleration"]) < linear_acceleration_threshold:
                 if np.linalg.norm(self.states[i]["linear_velocity"]) < linear_velocity_threshold:
-                    current_fluent = fluent.STATIONARY
+                    current_fluent = fluent.MovementFluent.STATIONARY
                 else:
-                    current_fluent = fluent.MOVING_CONSTANT
+                    current_fluent = fluent.MovementFluent.MOVING_CONSTANT
             else:
                 if np.dot(self.states[i]["linear_velocity"], self.states[i]["linear_acceleration"]) < 0.0:
-                    current_fluent = fluent.MOVING_DECELERATING
+                    current_fluent = fluent.MovementFluent.MOVING_DECELERATING
                 else:
-                    current_fluent = fluent.MOVING_ACCELERATING
+                    current_fluent = fluent.MovementFluent.MOVING_ACCELERATING
 
             if len(fluent_changes) == 0:
-                fluent_changes.append((self.states[i]["timestamp"] / 1e9, fluent.UNKNOWN, current_fluent))
+                fluent_changes.append((self.states[i]["timestamp"] / 1e9, fluent.MovementFluent.UNKNOWN, current_fluent))
 
             if np.linalg.norm(self.states[i + 1]["linear_acceleration"]) < linear_acceleration_threshold:
                 if np.linalg.norm(self.states[i + 1]["linear_velocity"]) < linear_velocity_threshold:
-                    new_fluent = fluent.STATIONARY
+                    new_fluent = fluent.MovementFluent.STATIONARY
                 else:
-                    new_fluent = fluent.MOVING_CONSTANT
+                    new_fluent = fluent.MovementFluent.MOVING_CONSTANT
             else:
                 if np.dot(self.states[i + 1]["linear_velocity"], self.states[i + 1]["linear_acceleration"]) < 0.0:
-                    new_fluent = fluent.MOVING_DECELERATING
+                    new_fluent = fluent.MovementFluent.MOVING_DECELERATING
                 else:
-                    new_fluent = fluent.MOVING_ACCELERATING
+                    new_fluent = fluent.MovementFluent.MOVING_ACCELERATING
 
             if new_fluent != current_fluent:
                 fluent_changes.append((self.states[i + 1]["timestamp"] / 1e9, current_fluent, new_fluent))
 
-
+        # Add change to unknown fluent at the end
 
         return fluent_changes
