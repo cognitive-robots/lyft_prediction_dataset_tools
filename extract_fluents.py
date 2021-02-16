@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
 import os
+import sys
+import pickle
 import argparse
 import zarr
 import functools
@@ -9,32 +11,30 @@ import numpy as np
 
 import agent
 import semantic_map
+import fluent
 
-arg_parser = argparse.ArgumentParser(description="Extract data from Lyft Level 5 Prediction dataset")
+from l5kit.data.proto import road_network_pb2
+sys.modules["road_network_pb2"] = road_network_pb2
+
+arg_parser = argparse.ArgumentParser(description="Extract and output fluent data from Lyft Level 5 Prediction dataset")
 arg_parser.add_argument("scene_dataset_dir_path")
-arg_parser.add_argument("semantic_map_file_path")
-arg_parser.add_argument("metadata_file_path")
+arg_parser.add_argument("extracted_map_file_path")
 args = arg_parser.parse_args()
 
-if not os.path.isfile(args.metadata_file_path):
-    raise ValueError("Metadata file path is not a valid file")
+if not os.path.isfile(args.extracted_map_file_path):
+    raise ValueError("Extracted map file path is not a valid file")
 
-with open(args.metadata_file_path, "r") as metadata_file:
-    metadata = json.load(metadata_file)
-    world_to_ecef = np.array(metadata["world_to_ecef"])
-    ecef_to_world = np.linalg.inv(world_to_ecef)
-
-print("Metadata loaded")
-
-if not os.path.isfile(args.semantic_map_file_path):
-    raise ValueError("Semantic map file path is not a valid file")
-
-if not os.path.isdir(args.scene_dataset_dir_path):
-    raise ValueError("Scene dataset directory path is not a valid directory")
-
-loaded_semantic_map = semantic_map.SemanticMap(args.semantic_map_file_path, args.scene_dataset_dir_path, ecef_to_world)
+with open(args.extracted_map_file_path, "rb") as extracted_map_file:
+    loaded_semantic_map = pickle.load(extracted_map_file)
 
 print("Semantic map loaded")
+
+tls = loaded_semantic_map.get_traffic_lights()
+tl_fluent_changes = []
+for tl in tls:
+    tl_fluent_changes += tl.get_traffic_light_fluent_changes()
+
+print("Found {} traffic light fluent changes".format(len(tl_fluent_changes)))
 
 scene_dataset = zarr.open(args.scene_dataset_dir_path)
 
@@ -58,8 +58,8 @@ for i in range(len(scene_data)):
     scene_non_ego_agents = list(map(lambda scene_agent_track_id : agent.Agent(scene_data[i]["frame_index_interval"][0], frame_data_by_scene[i], agent_data_by_scene[i], scene_agent_track_id), scene_agent_track_ids))
     agents.append(scene_non_ego_agents)
 
-fluent_changes = []
+agent_fluent_changes = []
 for agent in agents:
-    fluent_changes += agent.get_movement_fluent_changes()
+    agent_fluent_changes += agent.get_movement_fluent_changes()
 
-print("Found {} movement fluent changes".format(len(fluent_changes)))
+print("Found {} agent movement fluent changes".format(len(agent_fluent_changes)))

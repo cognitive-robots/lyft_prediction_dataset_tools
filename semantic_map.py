@@ -1,6 +1,8 @@
 
 from __future__ import annotations
 
+import os
+import pickle
 import copy
 import math
 import itertools
@@ -177,9 +179,9 @@ class Lane(LaneTreeInterface):
 
         self.left_boundary_coord_array, _ = convert_local_enu_to_world(
             convert_rel_to_abs(0.01 * np.stack((
-                np.asarray(lane_data.left_boundary.vertex_deltas_x_cm),
-                np.asarray(lane_data.left_boundary.vertex_deltas_y_cm),
-                np.asarray(lane_data.left_boundary.vertex_deltas_z_cm)))),
+                np.array(lane_data.left_boundary.vertex_deltas_x_cm),
+                np.array(lane_data.left_boundary.vertex_deltas_y_cm),
+                np.array(lane_data.left_boundary.vertex_deltas_z_cm)))),
             local_enu_frame_geodetic_datum,
             local_enu_frame_bearing_degrees,
             ecef_to_world)
@@ -192,9 +194,9 @@ class Lane(LaneTreeInterface):
 
         self.right_boundary_coord_array, _ = convert_local_enu_to_world(
             convert_rel_to_abs(0.01 * np.stack((
-                np.asarray(lane_data.right_boundary.vertex_deltas_x_cm),
-                np.asarray(lane_data.right_boundary.vertex_deltas_y_cm),
-                np.asarray(lane_data.right_boundary.vertex_deltas_z_cm)))),
+                np.array(lane_data.right_boundary.vertex_deltas_x_cm),
+                np.array(lane_data.right_boundary.vertex_deltas_y_cm),
+                np.array(lane_data.right_boundary.vertex_deltas_z_cm)))),
             local_enu_frame_geodetic_datum,
             local_enu_frame_bearing_degrees,
             ecef_to_world)
@@ -216,9 +218,9 @@ class Lane(LaneTreeInterface):
         self.access_restriction = lane_data.access_restriction
         self.adjacent_left_id = decode_global_id(lane_data.adjacent_lane_change_left)
         self.adjacent_right_id = decode_global_id(lane_data.adjacent_lane_change_right)
-        self.ahead_ids = map(decode_global_id, lane_data.lanes_ahead)
+        self.ahead_ids = list(map(decode_global_id, lane_data.lanes_ahead))
         self.behind_ids = []
-        self.traffic_control_ids = map(decode_global_id, lane_data.traffic_controls)
+        self.traffic_control_ids = list(map(decode_global_id, lane_data.traffic_controls))
 
         # Uncomment to carry out sanity check by checking a path drawn between boundaries is within the lane. Currently broken due to weird lane structures.
         #larger_boundary_array, smaller_boundary_array = (self.left_boundary_coord_array[:2], self.right_boundary_coord_array[:2]) \
@@ -393,7 +395,7 @@ class TrafficLight:
             local_enu_frame_bearing_degrees,
             ecef_to_world)
 
-        self.traffic_light_face_ids = map(decode_global_id, traffic_control_element_data.traffic_light.face_states)
+        self.traffic_light_face_ids = list(map(decode_global_id, traffic_control_element_data.traffic_light.face_states))
 
     def get_global_id(self) -> str:
         return self.global_id
@@ -405,6 +407,8 @@ class TrafficLight:
         return list(map(self.semantic_map.get_traffic_light_face, self.traffic_light_face_ids))
 
     def get_active_traffic_light_face(self, timestamp: float) -> TrafficLightFace:
+        if len(self.traffic_light_face_ids) == 0:
+            return None
         traffic_light_face_fluents = map(lambda global_id : self.semantic_map.get_traffic_light_face_fluent(global_id, timestamp), self.traffic_light_face_ids)
         active_traffic_light_faces = [traffic_light_face_fluent_pair[0] for traffic_light_face_fluent_pair in zip(self.get_traffic_light_faces(), traffic_light_face_fluents) if traffic_light_face_fluent_pair[1] == fluent.TrafficLightFaceFluent.ACTIVE]
         if len(active_traffic_light_faces) == 0:
@@ -413,11 +417,13 @@ class TrafficLight:
             return active_traffic_light_faces[0]
 
     def get_traffic_light_fluent_changes(self) -> [(float, fluent.TrafficLightFluent, fluent.TrafficLightFluent)]:
+        if len(self.traffic_light_face_ids) == 0:
+            return []
         traffic_light_timestamps = self.semantic_map.get_traffic_light_timestamps(self.get_global_id())
         active_traffic_light_faces = map(self.get_active_traffic_light_face, traffic_light_timestamps)
-        active_traffic_light_face_types = map(lambda traffic_light_face : traffic_light_face.get_type(), active_traffic_light_faces)
-        traffic_light_fluents = map(lambda traffic_light_face_type : TL_FACE_TYPE_TL_FLUENT_DICT.get(traffic_light_face_type, default=fluent.TrafficLightFluent.UNKNOWN), active_traffic_light_face_types)
-        traffic_light_frames = zip(traffic_light_timestamps, active_traffic_light_faces)
+        active_traffic_light_face_types = map(lambda traffic_light_face : traffic_light_face.get_type() if traffic_light_face is not None else None, active_traffic_light_faces)
+        traffic_light_fluents = map(lambda traffic_light_face_type : TL_FACE_TYPE_TL_FLUENT_DICT.get(traffic_light_face_type, fluent.TrafficLightFluent.UNKNOWN), active_traffic_light_face_types)
+        traffic_light_frames = zip(traffic_light_timestamps, traffic_light_fluents)
 
         fluent_changes = []
         previous_fluent = fluent.TrafficLightFluent.UNKNOWN
@@ -440,8 +446,8 @@ class TrafficLightFace:
 
         self.traffic_light_face_type = traffic_light_face_type
         self.observing_lane_ids = [decode_global_id(yield_rule.lane) for yield_rule in traffic_light_face_data.yield_rules_when_on]
-        self.observing_lane_id_yield_to_lane_ids_dict = {decode_global_id(yield_rule.lane): map(decode_global_id, yield_rule.yield_to_lanes) for yield_rule in traffic_light_face_data.yield_rules_when_on}
-        self.observing_lane_id_yield_to_crosswalk_ids_dict = {decode_global_id(yield_rule.lane): map(decode_global_id, yield_rule.yield_to_crosswalks) for yield_rule in traffic_light_face_data.yield_rules_when_on}
+        self.observing_lane_id_yield_to_lane_ids_dict = {decode_global_id(yield_rule.lane): list(map(decode_global_id, yield_rule.yield_to_lanes)) for yield_rule in traffic_light_face_data.yield_rules_when_on}
+        self.observing_lane_id_yield_to_crosswalk_ids_dict = {decode_global_id(yield_rule.lane): list(map(decode_global_id, yield_rule.yield_to_crosswalks)) for yield_rule in traffic_light_face_data.yield_rules_when_on}
         self.no_right_turn = traffic_light_face_data.no_right_turn_on_red
 
         assert not self.no_right_turn or traffic_light_face_type.find("red") >= 0
@@ -452,6 +458,9 @@ class TrafficLightFace:
     def get_type(self) -> str:
         return self.traffic_light_face_type
 
+    def get_parent(self) -> TrafficLight:
+        return self.semantic_map.get_parent_traffic_light(self.get_global_id())
+
     def get_observing_lanes(self) -> [Lane]:
         return map(self.semantic_map.get_lane, self.observing_lane_id)
 
@@ -460,6 +469,9 @@ class TrafficLightFace:
 
     def get_traffic_light_face_fluent_changes(self) -> [(float, fluent.TrafficLightFaceFluent, fluent.TrafficLightFaceFluent)]:
         traffic_light_face_frames = self.semantic_map.get_traffic_light_face_frames(self.get_global_id())
+
+        if traffic_light_face_frames is None:
+            return []
 
         fluent_changes = []
         previous_fluent = fluent.TrafficLightFaceFluent.UNKNOWN
@@ -474,7 +486,13 @@ class TrafficLightFace:
 
 class SemanticMap:
 
-    def __init__(self, map_pb_file_path: str, scene_zarr_dir_path: str, ecef_to_world: np.ndarray):
+    def __init__(self, map_pb_file_path: str = None, scene_zarr_dir_path: str = None, ecef_to_world: np.ndarray = None):
+        if not os.path.isfile(map_pb_file_path):
+            raise ValueError("Semantic map protobuf file path is not a valid file")
+
+        if not os.path.isdir(scene_zarr_dir_path):
+            raise ValueError("Scene dataset directory path is not a valid directory")
+
         with open(map_pb_file_path, "rb") as map_pb_file:
             map_fragment = rnpb.MapFragment()
             map_fragment.ParseFromString(map_pb_file.read())
@@ -486,6 +504,7 @@ class SemanticMap:
 
         self.id_traffic_light_face_frames_dict = {}
         self.id_traffic_light_timestamps = {}
+        self.id_traffic_light_face_id_traffic_light_dict = {}
 
         counter = 0
         frame_deltatime_sum = 0
@@ -506,6 +525,8 @@ class SemanticMap:
                     or self.id_traffic_light_timestamps[current_tl_face_data["traffic_light_id"]][-1] != current_frame_data["timestamp"] / 1e9:
                     self.id_traffic_light_timestamps[current_tl_face_data["traffic_light_id"]].append(current_frame_data["timestamp"] / 1e9)
 
+                self.id_traffic_light_face_id_traffic_light_dict[current_tl_face_data["face_id"]] = current_tl_face_data["traffic_light_id"]
+
             if previous_timestamp is not None:
                 frame_deltatime_sum += current_frame_data["timestamp"] / 1e9 - previous_timestamp
 
@@ -516,11 +537,8 @@ class SemanticMap:
         print("")
         print("Finished processing frames")
 
-        self.lanes = []
         self.id_lane_dict = {}
-        self.traffic_lights = []
         self.id_traffic_light_dict = {}
-        self.traffic_light_faces = []
         self.id_traffic_light_face_dict = {}
 
         counter = 0
@@ -532,7 +550,6 @@ class SemanticMap:
             if bool(element.element.HasField("lane")):
                 lane = Lane(global_id, element.element.lane, ecef_to_world, self)
                 self.id_lane_dict[global_id] = lane
-                self.lanes.append(lane)
 
             if bool(element.element.HasField("traffic_control_element")):
                 traffic_control_element_type = element.element.traffic_control_element.WhichOneof("Type")
@@ -540,20 +557,18 @@ class SemanticMap:
                 if traffic_control_element_type == "traffic_light":
                     traffic_light = TrafficLight(global_id, element.element.traffic_control_element, ecef_to_world, self)
                     self.id_traffic_light_dict[global_id] = traffic_light
-                    self.traffic_lights.append(traffic_light)
 
                 if traffic_control_element_type in TL_FACE_TYPE_TL_FLUENT_DICT.keys():
                     traffic_light_face = TrafficLightFace(global_id, element.element.traffic_control_element, traffic_control_element_type, self)
                     self.id_traffic_light_face_dict[global_id] = traffic_light_face
-                    self.traffic_light_faces.append(traffic_light_face)
 
             counter += 1
         print("")
         print("Finished processing map elements")
 
         counter = 0
-        for lane in self.lanes:
-            print("Post-processed {0:.2f}% of lanes".format(100 * counter / len(self.lanes)), end="\r")
+        for lane in self.id_lane_dict.values():
+            print("Post-processed {0:.2f}% of lanes".format(100 * counter / len(self.id_lane_dict.values())), end="\r")
 
             lane_global_id = lane.get_global_id()
 
@@ -566,22 +581,23 @@ class SemanticMap:
         print("Finished post-processing lanes")
 
         counter = 0
-        for traffic_light_face in self.traffic_light_faces:
-            print("Post-processed {0:.2f}% of traffic light faces".format(100 * counter / len(self.traffic_light_faces)), end="\r")
+        for traffic_light_face in self.id_traffic_light_face_dict.values():
+            print("Post-processed {0:.2f}% of traffic light faces".format(100 * counter / len(self.id_traffic_light_face_dict.values())), end="\r")
 
             traffic_light_face_frames = self.id_traffic_light_face_frames_dict.get(traffic_light_face.get_global_id())
-            if traffic_light_face_frames is None:
-                self.id_traffic_light_face_frames_dict[traffic_light_face.get_global_id()] = [(0, fluent.TrafficLightFaceFluent.UNKNOWN)]
-            else:
+            if traffic_light_face_frames is not None:
                 if traffic_light_face_frames[-1][1] != fluent.TrafficLightFaceFluent.UNKNOWN:
+                    new_timestamp = traffic_light_face_frames[-1][0] + frame_deltatime_mean
                     self.id_traffic_light_face_frames_dict[traffic_light_face.get_global_id()].append(
-                        (traffic_light_face_frames[-1][0] + frame_deltatime_mean, fluent.TrafficLightFaceFluent.UNKNOWN))
+                        (new_timestamp, fluent.TrafficLightFaceFluent.UNKNOWN))
+                    if self.id_traffic_light_timestamps[self.id_traffic_light_face_id_traffic_light_dict[traffic_light_face.get_global_id()]][-1] != new_timestamp:
+                        self.id_traffic_light_timestamps[self.id_traffic_light_face_id_traffic_light_dict[traffic_light_face.get_global_id()]].append(new_timestamp)
 
             counter += 1
         print("")
         print("Finished post-processing traffic light faces")
 
-        self.lane_tree = self.construct_lane_tree(self.lanes)
+        self.lane_tree = self.construct_lane_tree(list(self.id_lane_dict.values()))
         print("Finished constructing lane tree")
 
     def construct_lane_tree(self, lanes: [Lane], dimension: int = 0, dimstop: int = -1) -> LaneTreeInterface:
@@ -616,11 +632,23 @@ class SemanticMap:
     def get_lane(self, global_id: str) -> Lane:
         return self.id_lane_dict.get(global_id)
 
+    def get_lanes(self) -> [Lane]:
+        return list(self.id_lane_dict.values())
+
     def get_traffic_light(self, global_id: str) -> TrafficLight:
         return self.id_traffic_light_dict.get(global_id)
 
+    def get_traffic_lights(self) -> [TrafficLight]:
+        return list(self.id_traffic_light_dict.values())
+
     def get_traffic_light_face(self, global_id: str) -> TrafficLightFace:
         return self.id_traffic_light_face_dict.get(global_id)
+
+    def get_traffic_light_faces(self) -> [TrafficLightFace]:
+        return list(self.id_traffic_light_face_dict.values())
+
+    def get_parent_traffic_light(self, global_id: str) -> TrafficLight:
+        return self.get_traffic_light(self.id_traffic_light_face_id_traffic_light_dict.get(global_id))
 
     def get_traffic_light_face_fluent(self, global_id: str, timestamp: float) -> fluent.TrafficLightFaceFluent:
         traffic_light_face_frames = self.id_traffic_light_face_frames_dict.get(global_id)
@@ -628,7 +656,10 @@ class SemanticMap:
             return fluent.TrafficLightFaceFluent.UNKNOWN
         traffic_light_face_frames_pretimestamp = \
             [traffic_light_face_frame for traffic_light_face_frame in traffic_light_face_frames if traffic_light_face_frame[0] <= timestamp]
-        return traffic_light_face_frames_pretimestamp[-1][1]
+        if len(traffic_light_face_frames_pretimestamp) == 0:
+            return fluent.TrafficLightFaceFluent.UNKNOWN
+        else:
+            return traffic_light_face_frames_pretimestamp[-1][1]
 
     def get_traffic_light_face_frames(self, global_id: str) -> [(float, fluent.TrafficLightFaceFluent)]:
         return self.id_traffic_light_face_frames_dict.get(global_id)

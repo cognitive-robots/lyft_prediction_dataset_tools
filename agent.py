@@ -129,7 +129,7 @@ class Agent:
                 for i in range(len(self.states)):
                     self.states[i]["linear_velocity"] = np.zeros(3)
 
-    def get_movement_fluent_changes(fluent_stability_window_threshold: float = 5.0, linear_velocity_threshold: float = 0.01, linear_acceleration_threshold: float = 0.01):
+    def get_movement_fluent_changes(self, fluent_stability_window_threshold: float = 5.0, linear_velocity_threshold: float = 0.01, linear_acceleration_threshold: float = 0.01):
         fluent_changes = []
         for i in range(len(self.states) - 1):
             if np.linalg.norm(self.states[i]["linear_acceleration"]) < linear_acceleration_threshold:
