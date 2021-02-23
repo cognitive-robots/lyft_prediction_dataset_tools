@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 
 import fluent
 
+import pymap3d as pm
+
 TL_FACE_TYPE_TL_FLUENT_DICT = {
 "signal_flashing_yellow": fluent.TrafficLightFluent.YELLOW,
 "signal_flashing_red": fluent.TrafficLightFluent.RED,
@@ -47,43 +49,14 @@ def decompress_geoframe_origin(geoframe: rnpb.GeoFrame) -> np.ndarray:
 def convert_rel_to_abs(rel_coord_array: np.ndarray) -> np.ndarray:
     return np.cumsum(rel_coord_array, axis=-1)
 
-def convert_local_enu_to_world(local_enu_coord_array: np.ndarray, local_enu_frame_geodetic_datum: np.ndarray, local_enu_frame_bearing_degrees: float, ecef_to_world: np.ndarray, equatorial_radius: float = 6.378137e6, polar_radius: float = 6.356752e6) -> (np.ndarray, np.ndarray):
-    # https://en.wikipedia.org/wiki/Geographic_coordinate_conversion
-    lat = local_enu_frame_geodetic_datum[0] * np.pi / 180
-    lng = local_enu_frame_geodetic_datum[1] * np.pi / 180
-    alt = local_enu_frame_geodetic_datum[2]
-
-    centre_to_datum_unit = np.array([np.cos(lng) * np.cos(lat), np.sin(lng) * np.cos(lat), np.sin(lat)])
-    up = centre_to_datum_unit
-    east = np.cross(np.array([0, 0, 1]), up)
-    east /= np.linalg.norm(east)
-    north = np.cross(up, east)
-
-    local_enu_frame_bearing_radians = local_enu_frame_bearing_degrees * np.pi / 180
-    ox = np.cos(local_enu_frame_bearing_radians) * east - np.sin(local_enu_frame_bearing_radians) * north
-    oy = np.sin(local_enu_frame_bearing_radians) * east + np.cos(local_enu_frame_bearing_radians) * north
-    oz = up
-    o = np.array([ox, oy, oz])
-
-    excentricity = 1 - polar_radius**2 / equatorial_radius**2
-
-    normal = equatorial_radius / np.sqrt(1 - excentricity * np.sin(lat)**2)
-    origin = np.array([up[0] * normal, up[1] * normal, up[2] * (normal * (1 - excentricity))]) + alt * up
-
-    ecef_coord_array = (origin + (o @ local_enu_coord_array).T).T
+def convert_local_enu_to_world(local_enu_coord_array: np.ndarray, local_enu_frame_geodetic_datum: np.ndarray, ecef_to_world: np.ndarray) -> np.ndarray:
+    ecef_coord_array = np.stack(pm.enu2ecef(local_enu_coord_array[0], local_enu_coord_array[1], local_enu_coord_array[2], local_enu_frame_geodetic_datum[0], local_enu_frame_geodetic_datum[1], local_enu_frame_geodetic_datum[2]))
 
     homogeneous_ecef_coord_array = np.concatenate((ecef_coord_array, np.ones((1, ecef_coord_array.shape[-1]))))
     homogeneous_world_coord_array = ecef_to_world @ homogeneous_ecef_coord_array
     world_coord_array = homogeneous_world_coord_array[:3]
 
-    world_o = ecef_to_world[:3,:3] @ o
-    assert o[0,0] != 0 and o[2,2] != 0
-    world_y = np.arctan(world_o[1,0] / world_o[0,0])
-    world_p = np.arctan(-world_o[2,0] / np.sqrt(world_o[2,1]**2 + world_o[2,2]**2))
-    world_r = np.arctan(world_o[2,1] / world_o[2,2])
-    world_rpy = np.array([world_r, world_p, world_y])
-
-    return world_coord_array, world_rpy
+    return world_coord_array
 
 def get_coord_min_projection(coord_array: np.ndarray, coord_to_project: np.ndarray) -> np.ndarray:
     assert len(coord_array.shape) == 2
@@ -175,15 +148,13 @@ class Lane(LaneTreeInterface):
         self.semantic_map = semantic_map
 
         local_enu_frame_geodetic_datum = decompress_geoframe_origin(lane_data.geo_frame)
-        local_enu_frame_bearing_degrees = lane_data.geo_frame.bearing_degrees
 
-        self.left_boundary_coord_array, _ = convert_local_enu_to_world(
+        self.left_boundary_coord_array = convert_local_enu_to_world(
             convert_rel_to_abs(0.01 * np.stack((
                 np.array(lane_data.left_boundary.vertex_deltas_x_cm),
                 np.array(lane_data.left_boundary.vertex_deltas_y_cm),
                 np.array(lane_data.left_boundary.vertex_deltas_z_cm)))),
             local_enu_frame_geodetic_datum,
-            local_enu_frame_bearing_degrees,
             ecef_to_world)
         self.left_boundary_coord_array = np.float64(self.left_boundary_coord_array)
         self.left_boundary_aerial_centroid = np.mean(self.left_boundary_coord_array[:2], axis=-1)
@@ -192,13 +163,12 @@ class Lane(LaneTreeInterface):
                                         np.max(self.left_boundary_coord_array[0]),
                                         np.max(self.left_boundary_coord_array[1]))
 
-        self.right_boundary_coord_array, _ = convert_local_enu_to_world(
+        self.right_boundary_coord_array = convert_local_enu_to_world(
             convert_rel_to_abs(0.01 * np.stack((
                 np.array(lane_data.right_boundary.vertex_deltas_x_cm),
                 np.array(lane_data.right_boundary.vertex_deltas_y_cm),
                 np.array(lane_data.right_boundary.vertex_deltas_z_cm)))),
             local_enu_frame_geodetic_datum,
-            local_enu_frame_bearing_degrees,
             ecef_to_world)
         self.right_boundary_coord_array = np.float64(self.right_boundary_coord_array)
         self.right_boundary_aerial_centroid = np.mean(self.right_boundary_coord_array[:2], axis=-1)
@@ -236,6 +206,12 @@ class Lane(LaneTreeInterface):
     def get_global_id(self) -> str:
         return self.global_id
 
+    def get_left_boundary_coord_array(self) -> np.ndarray:
+        return self.left_boundary_coord_array
+
+    def get_right_boundary_coord_array(self) -> np.ndarray:
+        return self.right_boundary_coord_array
+
     def get_aerial_centroid(self) -> np.ndarray:
         return self.aerial_centroid
 
@@ -260,19 +236,19 @@ class Lane(LaneTreeInterface):
             point_contained = self.polygon.intersects(point)
 
             # Uncomment to see lane polygons and the point the encapsulation check is being carried out on (always)
-            #lane_polygon_plot_x, lane_polygon_plot_y = lane_polygon.exterior.xy
+            #lane_polygon_plot_x, lane_polygon_plot_y = self.polygon.exterior.xy
             #plt.plot(self.left_boundary_coord_array[0], self.left_boundary_coord_array[1], 'r', linewidth=3)
             #plt.plot(self.right_boundary_coord_array[0], self.right_boundary_coord_array[1], 'g', linewidth=3)
             #plt.plot(lane_polygon_plot_x, lane_polygon_plot_y)
             #plt.plot(point.x, point.y, "ro")
             #plt.gca().set_aspect('equal', adjustable='box')
-            #plt.show()
+            #plt.show(block=False)
 
             if point_contained:
             	return self
             else:
                 # Uncomment to see lane polygons and the point the encapsulation check is being carried out on (failure only)
-                #lane_polygon_plot_x, lane_polygon_plot_y = lane_polygon.exterior.xy
+                #lane_polygon_plot_x, lane_polygon_plot_y = self.polygon.exterior.xy
                 #plt.plot(self.left_boundary_coord_array[0], self.left_boundary_coord_array[1], 'r', linewidth=3)
                 #plt.plot(self.right_boundary_coord_array[0], self.right_boundary_coord_array[1], 'g', linewidth=3)
                 #plt.plot(lane_polygon_plot_x, lane_polygon_plot_y)
@@ -387,12 +363,11 @@ class TrafficLight:
         assert traffic_control_element_data.geometry_type == rnpb.TrafficControlElement.GeometryType.UKNOWN
 
         local_enu_frame_geodetic_datum = decompress_geoframe_origin(traffic_control_element_data.geo_frame)
-        local_enu_frame_bearing_degrees = traffic_control_element_data.geo_frame.bearing_degrees
+        self.bearing_degrees = traffic_control_element_data.geo_frame.bearing_degrees
 
-        self.position, self.rpy = convert_local_enu_to_world(
+        self.coord = convert_local_enu_to_world(
             np.zeros((3, 1)),
             local_enu_frame_geodetic_datum,
-            local_enu_frame_bearing_degrees,
             ecef_to_world)
 
         self.traffic_light_face_ids = list(map(decode_global_id, traffic_control_element_data.traffic_light.face_states))
@@ -400,8 +375,11 @@ class TrafficLight:
     def get_global_id(self) -> str:
         return self.global_id
 
-    def get_position(self) -> np.ndarray:
-        return self.position
+    def get_coord(self) -> np.ndarray:
+        return self.coord
+
+    def get_bearing_degrees(self) -> float:
+        return self.bearing_degrees
 
     def get_traffic_light_faces(self) -> [TrafficLightFace]:
         return list(map(self.semantic_map.get_traffic_light_face, self.traffic_light_face_ids))
@@ -625,6 +603,17 @@ class SemanticMap:
             return lanes[0]
         else:
             return None
+
+    def display(self, show_lanes: bool = True, block: bool = True):
+        if show_lanes:
+            for lane in list(self.id_lane_dict.values()):
+                left_boundary_coord_array = lane.get_left_boundary_coord_array()
+                right_boundary_coord_array = lane.get_right_boundary_coord_array()
+                plt.plot(left_boundary_coord_array[0], left_boundary_coord_array[1], 'r', linewidth=1)
+                plt.plot(right_boundary_coord_array[0], right_boundary_coord_array[1], 'g', linewidth=1)
+
+        #plt.gca().set_aspect('equal', adjustable='box')
+        plt.show(block=block)
 
     def get_encapsulating_lane(self, aerial_coord: (float, float)) -> Lane:
         return self.lane_tree.get_encapsulating_lane(aerial_coord)
