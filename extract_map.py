@@ -20,9 +20,6 @@ arg_parser.add_argument("metadata_file_path")
 arg_parser.add_argument("output_file_path")
 args = arg_parser.parse_args()
 
-if not os.path.isdir(os.path.split(args.output_file_path)[0]):
-    raise ValueError("Output file path is not under a valid directory")
-
 if not os.path.isfile(args.metadata_file_path):
     raise ValueError("Metadata file path is not a valid file")
 
@@ -35,7 +32,4 @@ print("Metadata loaded")
 
 loaded_semantic_map = semantic_map.SemanticMap(args.semantic_map_file_path, args.scene_dataset_dir_path, ecef_to_world)
 
-print("Semantic map loaded")
-
-with open(args.output_file_path, "wb") as output_file:
-    pickle.dump(loaded_semantic_map, output_file)
+loaded_semantic_map.save(args.output_file_path)

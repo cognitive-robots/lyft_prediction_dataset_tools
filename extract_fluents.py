@@ -21,13 +21,7 @@ arg_parser.add_argument("scene_dataset_dir_path")
 arg_parser.add_argument("extracted_map_file_path")
 args = arg_parser.parse_args()
 
-if not os.path.isfile(args.extracted_map_file_path):
-    raise ValueError("Extracted map file path is not a valid file")
-
-with open(args.extracted_map_file_path, "rb") as extracted_map_file:
-    loaded_semantic_map = pickle.load(extracted_map_file)
-
-print("Semantic map loaded")
+loaded_semantic_map = semantic_map.SemanticMap.load(args.extracted_map_file_path)
 
 tls = loaded_semantic_map.get_traffic_lights()
 tl_fluent_changes = []
