@@ -1,0 +1,66 @@
+# Copyright 2020 Lyft Inc
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#   http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Config format schema number
+format_version: 4
+
+###################
+## Model options
+model_params:
+  model_architecture: "resnet50"
+
+  history_num_frames: 0
+  history_step_size: 1
+  history_delta_time: 0.1
+
+  future_num_frames: 50
+  future_step_size: 1
+  future_delta_time: 0.1
+
+###################
+## Input raster parameters
+raster_params:
+  # raster image size [pixels]
+  raster_size:
+    - 1024
+    - 1024
+  # raster's spatial resolution [meters per pixel]: the size in the real world one pixel corresponds to.
+  pixel_size:
+    - 0.1
+    - 0.1
+  # From 0 to 1 per axis, [0.5,0.5] would show the ego centered in the image.
+  ego_center:
+    - 0.5
+    - 0.5
+  map_type: "py_semantic"
+
+  # the keys are relative to the dataset environment variable
+  satellite_map_key: "aerial_map/aerial_map.png"
+  semantic_map_key: "semantic_map/semantic_map.pb"
+  dataset_meta_key: "meta.json"
+
+  # e.g. 0.0 include every obstacle, 0.5 show those obstacles with >0.5 probability of being
+  # one of the classes we care about (cars, bikes, peds, etc.), >=1.0 filter all other agents.
+  filter_agents_threshold: 0.5
+
+  # whether to completely disable traffic light faces in the semantic rasterizer
+  disable_traffic_light_faces: False
+
+###################
+## Data loader options
+val_data_loader:
+  key: "scenes/sample.zarr"
+  batch_size: 12
+  shuffle: False
+  num_workers: 16
