@@ -28,10 +28,10 @@ class TrafficLightFluent(Fluent):
     def get_affinity_matrix():
         return np.array([[0, 1, 2, 3], [1, 0, 2, 3], [1, 2, 0, 3], [1, 3, 2, 0]])
 
-    UNKNOWN = 0
-    RED = 1
-    YELLOW = 2
-    GREEN = 3
+    UNKNOWN = -1
+    RED = 0
+    YELLOW = 1
+    GREEN = 2
 
 
 class TrafficLightFaceFluent(Fluent):
@@ -40,9 +40,9 @@ class TrafficLightFaceFluent(Fluent):
     def get_affinity_matrix():
         return np.array([[0, 1, 2], [1, 0, 2], [1, 2, 0]])
 
-    UNKNOWN = 0
-    INACTIVE = 1
-    ACTIVE = 2
+    UNKNOWN = -1
+    INACTIVE = 0
+    ACTIVE = 1
 
 
 class MovementFluent(Fluent):
@@ -51,11 +51,11 @@ class MovementFluent(Fluent):
     def get_affinity_matrix():
         return np.array([[0, 1, 2, 3, 4], [1, 0, 4, 3, 2], [1, 4, 0, 2, 3], [1, 3, 2, 0, 4], [1, 2, 3, 4, 0]])
 
-    UNKNOWN = 0
-    STATIONARY = 1
-    MOVING_CONSTANT = 2
-    MOVING_ACCELERATING = 3
-    MOVING_DECELERATING = 4
+    UNKNOWN = -1
+    STATIONARY = 0
+    MOVING_CONSTANT = 1
+    MOVING_ACCELERATING = 2
+    MOVING_DECELERATING = 3
 
 def calculate_heuristic(fluent_changes: [(float, MovementFluent, MovementFluent)], fluent_stability_window_threshold: float):
     unstable_fluent_change_index_pairs = get_unstable_fluent_change_index_pairs(fluent_changes, fluent_stability_window_threshold)

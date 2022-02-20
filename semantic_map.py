@@ -9,7 +9,7 @@ import itertools
 import shapely.geometry
 import zarr
 import json
-import lzo
+import lz4.frame
 import numpy as np
 import l5kit.data.proto.road_network_pb2 as rnpb
 import matplotlib.pyplot as plt
@@ -447,7 +447,7 @@ class TrafficLight:
     def get_traffic_light_faces(self) -> [TrafficLightFace]:
         return list(map(self.semantic_map.get_traffic_light_face, self.traffic_light_face_ids))
 
-    def get_active_traffic_light_face(self, timestamp: float) -> TrafficLightFace:
+    def get_active_traffic_light_face(self, timestamp: int) -> TrafficLightFace:
         if len(self.traffic_light_face_ids) == 0:
             return None
         traffic_light_face_fluents = map(lambda global_id : self.semantic_map.get_traffic_light_face_fluent(global_id, timestamp), self.traffic_light_face_ids)
@@ -604,24 +604,24 @@ class SemanticMap:
 
                     if self.id_traffic_light_face_frames_dict.get(current_tl_face_data["face_id"]) is None:
                         self.id_traffic_light_face_frames_dict[current_tl_face_data["face_id"]] = []
-                    self.id_traffic_light_face_frames_dict[current_tl_face_data["face_id"]].append((current_frame_data["timestamp"] / 1e9,
+                    self.id_traffic_light_face_frames_dict[current_tl_face_data["face_id"]].append((int(current_frame_data["timestamp"] / 1e6),
                         fluent.TrafficLightFaceFluent(int(fluent.TrafficLightFaceFluent.ACTIVE) - np.nonzero(current_tl_face_data["traffic_light_face_status"])[0][0])))
 
                     if self.id_traffic_light_timestamps.get(current_tl_face_data["traffic_light_id"]) is None:
                         self.id_traffic_light_timestamps[current_tl_face_data["traffic_light_id"]] = []
                     if len(self.id_traffic_light_timestamps[current_tl_face_data["traffic_light_id"]]) == 0 \
-                        or self.id_traffic_light_timestamps[current_tl_face_data["traffic_light_id"]][-1] != current_frame_data["timestamp"] / 1e9:
-                        self.id_traffic_light_timestamps[current_tl_face_data["traffic_light_id"]].append(current_frame_data["timestamp"] / 1e9)
+                        or self.id_traffic_light_timestamps[current_tl_face_data["traffic_light_id"]][-1] != int(current_frame_data["timestamp"] / 1e6):
+                        self.id_traffic_light_timestamps[current_tl_face_data["traffic_light_id"]].append(int(current_frame_data["timestamp"] / 1e6))
 
                     self.id_traffic_light_face_id_traffic_light_dict[current_tl_face_data["face_id"]] = current_tl_face_data["traffic_light_id"]
 
                 if previous_timestamp is not None:
-                    frame_deltatime_sum += current_frame_data["timestamp"] / 1e9 - previous_timestamp
+                    frame_deltatime_sum += int(current_frame_data["timestamp"] / 1e6) - previous_timestamp
 
-                previous_timestamp = current_frame_data["timestamp"] / 1e9
+                previous_timestamp = int(current_frame_data["timestamp"] / 1e6)
 
                 counter += 1
-            frame_deltatime_mean = frame_deltatime_sum / counter
+            frame_deltatime_mean = int(frame_deltatime_sum / counter)
             print("")
             print("Finished processing frames")
 
@@ -702,10 +702,16 @@ class SemanticMap:
         with open(output_file_path, "wb") as output_file:
             json_str = json.dumps(self, default=lambda obj : obj.toJSON())
             print("Converted semantic map into JSON string")
-            lzo_json_str = lzo.compress(json_str, 5)
-            print("Performed LZO compression on JSON string")
-            output_file.write(lzo_json_str)
-            print("Wrote LZO compressed JSON string to file")
+            #lzo_json_str = lzo.compress(json_str, 5)
+            #print("Performed LZO compression on JSON string")
+            #output_file.write(lzo_json_str)
+            #print("Wrote LZO compressed JSON string to file")
+            json_bytes = bytes(json_str, "utf-8")
+            print("Converted JSON string to JSON bytes")
+            lz4_json_bytes = lz4.frame.compress(json_bytes)
+            print("Performed LZ4 compression on JSON bytes")
+            output_file.write(lz4_json_bytes)
+            print("Wrote LZ4 compressed JSON bytes to file")
 
     @staticmethod
     def load(input_file_path: str) -> SemanticMap:
@@ -715,10 +721,16 @@ class SemanticMap:
             raise ValueError("Input file path directory {} is not a valid directory".format(input_file_path_dir))
 
         with open(input_file_path, "rb") as input_file:
-            lzo_json_str = input_file.read()
-            print("Read LZO compressed JSON string from file")
-            json_str = lzo.decompress(lzo_json_str)
-            print("Performed decompression on LZO compressed JSON string")
+            #lzo_json_str = input_file.read()
+            #print("Read LZO compressed JSON string from file")
+            #json_str = lzo.decompress(lzo_json_str)
+            #print("Performed decompression on LZO compressed JSON string")
+            lz4_json_bytes = input_file.read()
+            print("Read LZ4 compressed JSON bytes from file")
+            json_bytes = lz4.frame.decompress(lz4_json_bytes)
+            print("Performed decompression on LZ4 compressed JSON bytes")
+            json_str = json_bytes.decode("utf-8")
+            print("Converted JSON bytes to JSON string")
             json_data = json.loads(json_str)
             print("Converted JSON string into Python processable structures")
             return SemanticMap(json_data=json_data)
@@ -798,7 +810,7 @@ class SemanticMap:
     def get_parent_traffic_light(self, global_id: str) -> TrafficLight:
         return self.get_traffic_light(self.id_traffic_light_face_id_traffic_light_dict.get(global_id))
 
-    def get_traffic_light_face_fluent(self, global_id: str, timestamp: float) -> fluent.TrafficLightFaceFluent:
+    def get_traffic_light_face_fluent(self, global_id: str, timestamp: int) -> fluent.TrafficLightFaceFluent:
         traffic_light_face_frames = self.id_traffic_light_face_frames_dict.get(global_id)
         if traffic_light_face_frames is None:
             return fluent.TrafficLightFaceFluent.UNKNOWN
