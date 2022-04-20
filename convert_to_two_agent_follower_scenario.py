@@ -10,10 +10,10 @@ import numpy as np
 minimum_time_window_threshold = 10000
 interpolation_count = 0
 
-arg_parser = argparse.ArgumentParser(description="Converts a scene to a two agent follower scenario upon which causal discovery can be performed")
+arg_parser = argparse.ArgumentParser(description="Converts a scene to a two agent convoy scenario upon which causal discovery can be performed")
 arg_parser.add_argument("scene_file_path")
 arg_parser.add_argument("output_file_path")
-arg_parser.add_argument("follower_agent_id", type=int)
+arg_parser.add_argument("followed_agent_id", type=int)
 arg_parser.add_argument("--all-kinematic-variables", action="store_true")
 arg_parser.add_argument("--interagent-distance-variables", action="store_true")
 arg_parser.add_argument("--independent-agent-ids", type=int, nargs="*", default=[])
@@ -42,10 +42,10 @@ with open(args.scene_file_path, "rb") as input_file:
     earliest_last_timestamp = None
 
     for agent in json_data:
-        if agent["ego"] or agent["id"] == args.follower_agent_id or agent["id"] in args.independent_agent_ids:
+        if agent["ego"] or agent["id"] == args.followed_agent_id or agent["id"] in args.independent_agent_ids:
             if agent["ego"]:
                 relevant_agents["c1"] = agent
-            elif agent["id"] == args.follower_agent_id:
+            elif agent["id"] == args.followed_agent_id:
                 relevant_agents["c0"] = agent
             else:
                 index = args.independent_agent_ids.index(agent["id"])
