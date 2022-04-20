@@ -2,7 +2,6 @@
 
 import os
 import sys
-import pickle
 import argparse
 import zarr
 import json
