@@ -10,7 +10,7 @@ import numpy as np
 minimum_time_window_threshold = 10000
 interpolation_count = 0
 
-arg_parser = argparse.ArgumentParser(description="Converts a scene to a two agent convoy scenario upon which causal discovery can be performed")
+arg_parser = argparse.ArgumentParser(description="Converts a scene to a two agent convoy scene upon which causal discovery can be performed")
 arg_parser.add_argument("scene_file_path")
 arg_parser.add_argument("output_file_path")
 arg_parser.add_argument("follower_agent_id", type=int)
