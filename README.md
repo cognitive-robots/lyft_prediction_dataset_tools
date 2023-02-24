@@ -10,30 +10,30 @@ pip3 install l5kit
 
 Any other python packages should either be installed by default or included as l5kit prerequisites.
 
-## Convert to Two Agent Followed / Follower Scenario
-Converts intermediary agent data stored in an LZ4 compressed custom JSON format to a two agent convoy scenario that causal discovery can be carried out upon. The only difference between the scripts is whether the ego vehicle - which is specified in the supplied agent data - is the lead or tail vehicle in the convoy, which corresponds to the f
+## Convert to Two-Agent Followed / Follower Scene
+Converts intermediary agent data stored in an LZ4 compressed custom JSON format to a two-agent convoy scenario scene that causal discovery can be carried out upon. The only difference between the scripts is whether the ego vehicle - which is specified in the supplied agent data - is the lead or tail vehicle in the convoy.
 
-    usage: convert_to_two_agent_followed_scenario.py [-h] [--all-kinematic-variables] [--interagent-distance-variables] [--independent-agent-ids [INDEPENDENT_AGENT_IDS [INDEPENDENT_AGENT_IDS ...]]] scene_file_path output_file_path follower_agent_id
-           convert_to_two_agent_follower_scenario.py [-h] [--all-kinematic-variables] [--interagent-distance-variables] [--independent-agent-ids [INDEPENDENT_AGENT_IDS [INDEPENDENT_AGENT_IDS ...]]] scene_file_path output_file_path followed_agent_id
+    usage: convert_to_two_agent_followed_scene.py [-h] [--all-kinematic-variables] [--interagent-distance-variables] [--independent-agent-ids [INDEPENDENT_AGENT_IDS [INDEPENDENT_AGENT_IDS ...]]] scene_file_path output_file_path follower_agent_id
+           convert_to_two_agent_follower_scene.py [-h] [--all-kinematic-variables] [--interagent-distance-variables] [--independent-agent-ids [INDEPENDENT_AGENT_IDS [INDEPENDENT_AGENT_IDS ...]]] scene_file_path output_file_path followed_agent_id
            
 Parameters:
 * scene_file_path: File path specifying the input intermediary scene agent data file.
-* output_file_path: File path specifying the location to output the resulting scenario.
+* output_file_path: File path specifying the location to output the resulting scene.
 * follower_agent_id: Agent ID of the agent following the ego vehicle.
 * followed_agent_id: Agent ID of the agent the ego vehicle is following.
 * -h: Displays the help message for the script.
-* --all-kinematic-variables: Includes distance travelled and velocity for all scenario agents as variables in the output scenario. By default only includes acceleration for all scenario agent.
-* --interagent-distance-variables: Includes distance between scenario agents as variables in the output scenario.
+* --all-kinematic-variables: Includes distance travelled and velocity for all scenario agents as variables in the output scene. By default only includes acceleration for all scenario agents.
+* --interagent-distance-variables: Includes distance between scenario agents as variables in the output scene.
 * --independent-agent-ids: Agent IDs of agents that should be added to the scenario as independent agents with no causal relations.
 
-## Extract Semi-Synthetic Two Agent Convoy Scenarios
-Combines intermediary agent data from multiple scenes and extracts two agent convey scenarios from the resulting data. In order to achieve longer two agent convoy scenarios, consecutive scenes are joined together provided a number of safety checks are met. This however introduces the difficulty of finding agents that are both present for the entire scenario and devoid of any causal interactions with the convoy agents. This is practically impossible and so this takes a semisynthetic approach by superimposing the data taken from the trajectory of one ego vehicle onto the convoy scenarios. Thus the independent agent data is sufficiently long and is truly independent, however the resulting scenario describes circumstances that never occurred in the real world, despite being based upon real world data.
+## Extract Semi-Synthetic Two-Agent Convoy Scenes
+Combines intermediary agent data from multiple scenes and extracts two-agent convoy scenario scenes from the resulting data. In order to achieve longer scenes, consecutive scenes are joined together provided a number of safety checks are met. This however introduces the difficulty of finding agents that are both present for the entire scene and devoid of any causal interactions with the convoy agents. This is practically impossible and so this takes a semisynthetic approach by superimposing the data taken from the trajectory of one ego vehicle onto the convoy scene. Thus the independent agent data is sufficiently long and is truly independent, however the resulting scene describes circumstances that never occurred in the real world, despite being based upon real world data.
 
-    usage: extract_semisynthetic_two_agent_convoy_scenarios.py [-h] input_dir_path output_dir_path
+    usage: extract_semisynthetic_two_agent_convoy_scenes.py [-h] input_dir_path output_dir_path
     
 Parameters:
 * input_directory_path: Specifies path to directory containing intermediary scene agent data files to take as input.
-* output_directory_path: Specifies path to directory to output two agent convoy scenarios to.
+* output_directory_path: Specifies path to directory to output two-agent convoy scenes to.
 * -h: Displays the help message for the script.
 
 ## Extract Agents
