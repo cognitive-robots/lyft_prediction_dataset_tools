@@ -16,7 +16,7 @@ arg_parser.add_argument("config_file_path")
 arg_parser.add_argument("scene_number", type=int)
 arg_parser.add_argument("frame_number", type=int)
 arg_parser.add_argument("output_file_path")
-arg_parser.add_argument("--frame_number_offsets", nargs="*", type=int, default=[0])
+arg_parser.add_argument("--frame-number-offsets", nargs="*", type=int, default=[0])
 args = arg_parser.parse_args()
 
 os.environ["L5KIT_DATA_FOLDER"] = args.dataset_directory_path
