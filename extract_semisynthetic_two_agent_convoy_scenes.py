@@ -28,7 +28,7 @@ def input_json_lz4(input_file):
     json_data = json.loads(json_str)
     return json_data
 
-arg_parser = argparse.ArgumentParser(description="Takes an agent scene directory and outputs semi-synthetic two agent convoy scenarios")
+arg_parser = argparse.ArgumentParser(description="Takes an agent scene directory and outputs semi-synthetic two agent convoy scenes")
 arg_parser.add_argument("input_dir_path")
 arg_parser.add_argument("output_dir_path")
 args = arg_parser.parse_args()
