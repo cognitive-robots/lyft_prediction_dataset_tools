@@ -6,10 +6,11 @@ import l5kit.rasterization
 import l5kit.data.labels
 
 import fluent
+import semantic_map
 
 class Agent:
 
-    def __init__(self, base_frame_index: int, frame_data: np.ndarray, track_id: int, ego: bool = True, agent_data: np.ndarray = None, kinematic_timeseries_window: int = 101):
+    def __init__(self, base_frame_index: int, frame_data: np.ndarray, track_id: int, ego: bool = True, agent_data: np.ndarray = None, agent_map: semantic_map.SemanticMap = None, kinematic_timeseries_window: int = 15):
         self.states = []
         self.ego = ego
         self.id = int(track_id)
@@ -33,7 +34,7 @@ class Agent:
 
                 state["timestamp"] = int(frame_data[current_frame_data_index]["timestamp"] / 1e6)
                 state["position"] = frame_data[current_frame_data_index]["ego_translation"][:2]
-                state["rotation"] = np.arctan2(frame_data[current_frame_data_index]["ego_rotation"][1,0], frame_data[current_frame_data_index]["ego_rotation"][0,0])
+                state["rotation"] = np.arctan2(frame_data[current_frame_data_index]["ego_rotation"][1,0], frame_data[current_frame_data_index]["ego_rotation"][1,1])
 
                 self.states.append(state)
 
@@ -104,27 +105,43 @@ class Agent:
 
             self.states[0]["linear_velocity"] = translation_diff / time_diff
             self.states[0]["angular_velocity"] = rotation_diff / time_diff
-            self.states[1]["linear_velocity"] = self.states[0]["linear_velocity"]
-            self.states[1]["angular_velocity"] = self.states[0]["angular_velocity"]
+            self.states[1]["linear_velocity"] = np.copy(self.states[0]["linear_velocity"])
+            self.states[1]["angular_velocity"] = np.copy(self.states[0]["angular_velocity"])
         else:
-            self.states[0]["linear_velocity"] = self.states[1]["linear_velocity"]
-            self.states[len(self.states) - 1]["linear_velocity"] = self.states[len(self.states) - 2]["linear_velocity"]
-            self.states[0]["angular_velocity"] = self.states[1]["angular_velocity"]
-            self.states[len(self.states) - 1]["angular_velocity"] = self.states[len(self.states) - 2]["angular_velocity"]
+            self.states[0]["linear_velocity"] = np.copy(self.states[1]["linear_velocity"])
+            self.states[len(self.states) - 1]["linear_velocity"] = np.copy(self.states[len(self.states) - 2]["linear_velocity"])
+            self.states[0]["angular_velocity"] = np.copy(self.states[1]["angular_velocity"])
+            self.states[len(self.states) - 1]["angular_velocity"] = np.copy(self.states[len(self.states) - 2]["angular_velocity"])
 
         for i in range(len(self.states)):
-            current_fore_wing = min(kinematic_timeseries_window_wing, i)
-            current_aft_wing = min(kinematic_timeseries_window_wing, (len(self.states) - 1) - i)
-            self.states[i]["linear_velocity_moving_mean"] = self.states[i]["linear_velocity"]
-            self.states[i]["angular_velocity_moving_mean"] = self.states[i]["angular_velocity"]
-            for j in range(1, current_fore_wing + 1):
-                self.states[i]["linear_velocity_moving_mean"] += self.states[i - j]["linear_velocity"]
-                self.states[i]["angular_velocity_moving_mean"] += self.states[i - j]["angular_velocity"]
-            for j in range(1, current_aft_wing + 1):
-                self.states[i]["linear_velocity_moving_mean"] += self.states[i + j]["linear_velocity"]
-                self.states[i]["angular_velocity_moving_mean"] += self.states[i + j]["angular_velocity"]
-            self.states[i]["linear_velocity_moving_mean"] /= current_fore_wing + current_aft_wing + 1
-            self.states[i]["angular_velocity_moving_mean"] /= current_fore_wing + current_aft_wing + 1
+            self.states[i]["linear_velocity_moving_mean"] = np.copy(self.states[i]["linear_velocity"])
+            #temp = self.states[i]["linear_velocity"]
+            #print(temp)
+            #temp = self.states[i]["linear_velocity_moving_mean"]
+            #print(f"{i}: {temp}")
+            self.states[i]["angular_velocity_moving_mean"] = np.copy(self.states[i]["angular_velocity"])
+            for j in range(1, kinematic_timeseries_window_wing + 1):
+                k = max(i - j, 0)
+                self.states[i]["linear_velocity_moving_mean"] += self.states[k]["linear_velocity"]
+                #temp = self.states[k]["linear_velocity"]
+                #print(temp)
+                #temp = self.states[i]["linear_velocity_moving_mean"]
+                #print(f"{i}-{j} = {k}: {temp}")
+                self.states[i]["angular_velocity_moving_mean"] += self.states[k]["angular_velocity"]
+            for j in range(1, kinematic_timeseries_window_wing + 1):
+                k = min(i + j, len(self.states) - 1)
+                self.states[i]["linear_velocity_moving_mean"] += self.states[k]["linear_velocity"]
+                #temp = self.states[k]["linear_velocity"]
+                #print(temp)
+                #temp = self.states[i]["linear_velocity_moving_mean"]
+                #print(f"{i}+{j} = {k}: {temp}")
+                self.states[i]["angular_velocity_moving_mean"] += self.states[k]["angular_velocity"]
+            #temp = self.states[i]["linear_velocity_moving_mean"]
+            #print(f"sum: {temp}")
+            self.states[i]["linear_velocity_moving_mean"] /= 2 * kinematic_timeseries_window_wing + 1
+            #temp = self.states[i]["linear_velocity_moving_mean"]
+            #print(f"mean: {temp}")
+            self.states[i]["angular_velocity_moving_mean"] /= 2 * kinematic_timeseries_window_wing + 1
 
         for i in range(len(self.states)):
             self.states[i]["linear_velocity"] = self.states[i]["linear_velocity_moving_mean"]
@@ -147,24 +164,24 @@ class Agent:
                 self.states[i]["linear_acceleration"] = np.zeros(2)
                 self.states[i]["angular_acceleration"] = 0.0
         else:
-            self.states[0]["linear_acceleration"] = self.states[1]["linear_acceleration"]
-            self.states[len(self.states) - 1]["linear_acceleration"] = self.states[len(self.states) - 2]["linear_acceleration"]
-            self.states[0]["angular_acceleration"] = self.states[1]["angular_acceleration"]
-            self.states[len(self.states) - 1]["angular_acceleration"] = self.states[len(self.states) - 2]["angular_acceleration"]
+            self.states[0]["linear_acceleration"] = np.copy(self.states[1]["linear_acceleration"])
+            self.states[len(self.states) - 1]["linear_acceleration"] = np.copy(self.states[len(self.states) - 2]["linear_acceleration"])
+            self.states[0]["angular_acceleration"] = np.copy(self.states[1]["angular_acceleration"])
+            self.states[len(self.states) - 1]["angular_acceleration"] = np.copy(self.states[len(self.states) - 2]["angular_acceleration"])
 
         for i in range(len(self.states)):
-            current_fore_wing = min(kinematic_timeseries_window_wing, i)
-            current_aft_wing = min(kinematic_timeseries_window_wing, (len(self.states) - 1) - i)
-            self.states[i]["linear_acceleration_moving_mean"] = self.states[i]["linear_acceleration"]
-            self.states[i]["angular_acceleration_moving_mean"] = self.states[i]["angular_acceleration"]
-            for j in range(1, current_fore_wing + 1):
-                self.states[i]["linear_acceleration_moving_mean"] += self.states[i - j]["linear_acceleration"]
-                self.states[i]["angular_acceleration_moving_mean"] += self.states[i - j]["angular_acceleration"]
-            for j in range(1, current_aft_wing + 1):
-                self.states[i]["linear_acceleration_moving_mean"] += self.states[i + j]["linear_acceleration"]
-                self.states[i]["angular_acceleration_moving_mean"] += self.states[i + j]["angular_acceleration"]
-            self.states[i]["linear_acceleration_moving_mean"] /= current_fore_wing + current_aft_wing + 1
-            self.states[i]["angular_acceleration_moving_mean"] /= current_fore_wing + current_aft_wing + 1
+            self.states[i]["linear_acceleration_moving_mean"] = np.copy(self.states[i]["linear_acceleration"])
+            self.states[i]["angular_acceleration_moving_mean"] = np.copy(self.states[i]["angular_acceleration"])
+            for j in range(1, kinematic_timeseries_window_wing + 1):
+                k = max(i - j, 0)
+                self.states[i]["linear_acceleration_moving_mean"] += self.states[k]["linear_acceleration"]
+                self.states[i]["angular_acceleration_moving_mean"] += self.states[k]["angular_acceleration"]
+            for j in range(1, kinematic_timeseries_window_wing + 1):
+                k = min(i + j, len(self.states) - 1)
+                self.states[i]["linear_acceleration_moving_mean"] += self.states[k]["linear_acceleration"]
+                self.states[i]["angular_acceleration_moving_mean"] += self.states[k]["angular_acceleration"]
+            self.states[i]["linear_acceleration_moving_mean"] /= 2 * kinematic_timeseries_window_wing + 1
+            self.states[i]["angular_acceleration_moving_mean"] /= 2 * kinematic_timeseries_window_wing + 1
 
         for i in range(len(self.states)):
             self.states[i]["linear_acceleration"] = self.states[i]["linear_acceleration_moving_mean"]
@@ -172,7 +189,16 @@ class Agent:
             self.states[i]["angular_acceleration"] = self.states[i]["angular_acceleration_moving_mean"]
             del self.states[i]["angular_acceleration_moving_mean"]
 
-
+        #if map is not None:
+        #    for i in range(len(self.states)):
+        #        position = self.states[i]["position"]
+        #        x = position[0]
+        #        y = position[1]
+        #        lane = agent_map.get_encapsulating_lane((x, y))
+        #        if lane is not None:
+        #            self.states[i]["lane"] = lane.get_global_id()
+        #        else:
+        #            self.states[i]["lane"] = ""
 
         for i in range(len(self.states)):
             self.states[i]["position"] = list(map(float, self.states[i]["position"]))

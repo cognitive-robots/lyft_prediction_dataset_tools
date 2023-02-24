@@ -14,6 +14,7 @@ arg_parser = argparse.ArgumentParser(description="Converts a scene to a two agen
 arg_parser.add_argument("scene_file_path")
 arg_parser.add_argument("output_file_path")
 arg_parser.add_argument("followed_agent_id", type=int)
+arg_parser.add_argument("--velocity-variables", action="store_true")
 arg_parser.add_argument("--all-kinematic-variables", action="store_true")
 arg_parser.add_argument("--interagent-distance-variables", action="store_true")
 arg_parser.add_argument("--independent-agent-ids", type=int, nargs="*", default=[])
@@ -149,6 +150,31 @@ with open(args.scene_file_path, "rb") as input_file:
 
                     agent_timeseries[f"{key}.a"].append(1e6 * rotation_corrected_acceleration)
                     previous_rotation_corrected_acceleration = rotation_corrected_acceleration
+    elif args.velocity_variables:
+        for key in agent_ordering:
+            agent_states[key] = []
+
+            agent_timeseries[f"{key}.v"] = []
+
+            states = relevant_agents[key]["states"]
+
+            previous_rotation_corrected_velocity = None
+            for state in states:
+                if not (state["timestamp"] < latest_first_timestamp or state["timestamp"] > earliest_last_timestamp):
+                    agent_states[key].append(state)
+
+                    rotation = state["rotation"]
+                    velocity = np.array(state["linear_velocity"])
+                    rotation_corrected_velocity = np.cos(rotation) * velocity[0] + np.sin(rotation) * velocity[1]
+
+                    if previous_rotation_corrected_velocity is not None:
+                        for i in range(1, interpolation_count + 1):
+                            alpha = i / (interpolation_count + 1)
+                            interpolated_rotation_corrected_velocity = alpha * rotation_corrected_velocity + (1 - alpha) * previous_rotation_corrected_velocity
+                            agent_timeseries[key].append(1e3 * interpolated_rotation_corrected_velocity)
+
+                    agent_timeseries[f"{key}.v"].append(1e3 * rotation_corrected_velocity)
+                    previous_rotation_corrected_velocity = rotation_corrected_velocity
     else:
         for key in agent_ordering:
             agent_states[key] = []
@@ -207,7 +233,10 @@ with open(args.scene_file_path, "rb") as input_file:
                             agent_timeseries[f"{key}-{other_key}.d"].append(distance)
                             previous_distance = distance
 
-    ego_agent_timeseries_len = len(agent_timeseries["c1.a"])
+    if args.velocity_variables:
+        ego_agent_timeseries_len = len(agent_timeseries["c1.v"])
+    else:
+        ego_agent_timeseries_len = len(agent_timeseries["c1.a"])
 
     for key in agent_timeseries.keys():
         agent_timeseries_len = len(agent_timeseries[key])
@@ -216,13 +245,14 @@ with open(args.scene_file_path, "rb") as input_file:
 
     rows = []
     for i in range(ego_agent_timeseries_len):
-        row = {}
+        row = { "time_index": i }
         for key in agent_timeseries.keys():
             row[key] = agent_timeseries[key][i]
         rows.append(row)
 
     with open(args.output_file_path, 'w') as output_file:
-        csv_writer = csv.DictWriter(output_file, fieldnames=agent_timeseries.keys())
+        fieldnames = ["time_index"] + list(agent_timeseries.keys())
+        csv_writer = csv.DictWriter(output_file, fieldnames=fieldnames)
         csv_writer.writeheader()
         for row in rows:
             csv_writer.writerow(row)
